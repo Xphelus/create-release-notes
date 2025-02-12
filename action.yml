@@ -1,6 +1,10 @@
 name: 'create-release-notes'
-description: 'Generates release notes from commits between the latest tag and the branch HEAD.'
+description: 'Generates release notes from commits between the latest (or specified) tag and the branch HEAD.'
 inputs:
+    base-ref:
+      description: 'Custom base ref'
+      required: false
+      default: ''
     head-ref:
         description: 'Custom head ref'
         required: false

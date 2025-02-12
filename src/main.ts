@@ -10,120 +10,62 @@ async function main() {
             return
         }
 
-        const baseTag = getInput('base-tag')
+        let baseRef = getInput('base-ref')
         const headRef = getInput('head-ref')
         const format = getInput('format')
         const github = getOctokit(process.env.GITHUB_TOKEN)
         const { owner, repo } = context.repo
 
-        // If there's no baseTag input, we'll just use the latest release
-        if (!baseTag) {
-
-            let baseRef = ''
-
-            return github.repos
-                .getLatestRelease({ owner, repo })
-                .then(
-                    (release) =>
-                        github.request('GET /repos/:owner/:repo/compare/:baseRef...:headRef', {
+        return github.repos
+            .getLatestRelease({ owner, repo })
+            .then(
+                (release) =>
+                    github.request('GET /repos/:owner/:repo/compare/:baseRef...:headRef', {
+                        owner,
+                        repo,
+                        baseRef: (baseRef = !baseRef ? release.data.tag_name : baseRef),
+                        headRef,
+                    }),
+                () =>
+                    github
+                        .request('GET /repos/:owner/:repo/commits/:headRef', {
                             owner,
                             repo,
-                            baseRef: (baseRef = release.data.tag_name),
                             headRef,
-                        }),
-                    () =>
-                        github
-                            .request('GET /repos/:owner/:repo/commits/:headRef', {
-                                owner,
-                                repo,
-                                headRef,
-                            })
-                            .then((response) => ({
-                                data: {
-                                    commits: [response.data as ApiCommit],
-                                },
-                            })),
-                )
-                .then((response) =>
-                    response.data.commits
-                        .map((commit: ApiCommit) => ({
-                            author: commit.author?.login,
-                            committer: commit.committer?.login,
-                            subject: commit.commit.message.split('\n')[0],
-                            message: commit.commit.message,
-                        }))
-                        .reverse(),
-                )
-                .then((commits) => {
-                    if (commits.length === 0) {
-                        setFailed(`No commits found between refs ${baseRef}...${headRef}`)
-                        return
-                    }
+                        })
+                        .then((response) => ({
+                            data: {
+                                commits: [response.data as ApiCommit],
+                            },
+                        })),
+            )
+            .then((response) =>
+                response.data.commits
+                    .map((commit: ApiCommit) => ({
+                        author: commit.author?.login,
+                        committer: commit.committer?.login,
+                        subject: commit.commit.message.split('\n')[0],
+                        message: commit.commit.message,
+                    }))
+                    .reverse(),
+            )
+            .then((commits) => {
+                if (commits.length === 0) {
+                    setFailed(`No commits found between refs ${baseRef}...${headRef}`)
+                    return
+                }
 
-                    setOutput('release-name', commits[0].subject)
+                setOutput('release-name', commits[0].subject)
 
-                    let releaseNotes = ''
-                    for (const commit of commits) {
-                        releaseNotes += buildReleaseNote(format, commit)
-                        releaseNotes += '\n'
-                    }
+                let releaseNotes = ''
+                for (const commit of commits) {
+                    releaseNotes += buildReleaseNote(format, commit)
+                    releaseNotes += '\n'
+                }
 
-                    setOutput('release-notes', releaseNotes)
-                })
-                .catch((error) => setFailed(error.message))
-        } else {
-            // If there's a baseTag input, we'll use that to compare
-            return github.repos
-                .getReleaseByTag({ owner, repo, tag: baseTag })
-                .then(
-                    (release) =>
-                        github.request('GET /repos/:owner/:repo/compare/:baseRef...:headRef', {
-                            owner,
-                            repo,
-                            baseRef: release.data.target_commitish,
-                            headRef,
-                        }),
-                    () =>
-                        github
-                            .request('GET /repos/:owner/:repo/commits/:headRef', {
-                                owner,
-                                repo,
-                                headRef,
-                            })
-                            .then((response) => ({
-                                data: {
-                                    commits: [response.data as ApiCommit],
-                                },
-                            })),
-                )
-                .then((response) =>
-                    response.data.commits
-                        .map((commit: ApiCommit) => ({
-                            author: commit.author?.login,
-                            committer: commit.committer?.login,
-                            subject: commit.commit.message.split('\n')[0],
-                            message: commit.commit.message,
-                        }))
-                        .reverse(),
-                )
-                .then((commits) => {
-                    if (commits.length === 0) {
-                        setFailed(`No commits found between refs ${baseTag}...${headRef}`)
-                        return
-                    }
-
-                    setOutput('release-name', commits[0].subject)
-
-                    let releaseNotes = ''
-                    for (const commit of commits) {
-                        releaseNotes += buildReleaseNote(format, commit)
-                        releaseNotes += '\n'
-                    }
-
-                    setOutput('release-notes', releaseNotes)
-                })
-                .catch((error) => setFailed(error.message))
-        }
+                setOutput('release-notes', releaseNotes)
+            })
+            .catch((error) => setFailed(error.message))
     } catch (error) {
         setFailed(
             typeof error === 'string' || error instanceof Error
