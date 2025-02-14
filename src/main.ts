@@ -16,14 +16,15 @@ async function main() {
         const github = getOctokit(process.env.GITHUB_TOKEN)
         const { owner, repo } = context.repo
 
-        return github.repos
-            .getLatestRelease({ owner, repo })
+        let getReleaseFunc = !baseRef ? github.repos.getLatestRelease({ owner, repo }) : github.repos.getReleaseByTag({ owner, repo, tag: baseRef })
+
+        return getReleaseFunc
             .then(
                 (release) =>
                     github.request('GET /repos/:owner/:repo/compare/:baseRef...:headRef', {
                         owner,
                         repo,
-                        baseRef: (baseRef = !baseRef ? release.data.tag_name : baseRef),
+                        baseRef: release.data.tag_name,
                         headRef,
                     }),
                 () =>
